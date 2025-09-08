@@ -1,0 +1,15 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 2rem;
+    background: #fdfdfd;
+    color: #333;
+}
+
+h1 {
+    color: #0066cc;
+}
+
+a {
+    color: #cc0000;
+    text-decoration: none;
+}

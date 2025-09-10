@@ -1,9 +1,9 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using IdpServer.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace IdpServer.Controllers
 {
-    [Route("account")]
     public class AccountController : Controller
     {
         private readonly SignInManager<AppUser> _signInMgr;
@@ -15,29 +15,50 @@ namespace IdpServer.Controllers
             _userMgr = userMgr;
         }
 
-        [HttpGet("login")]
-        public IActionResult Login(string? returnUrl = null)
+        [HttpGet("/Account/Login")]
+        public IActionResult Login(string returnUrl = null)
         {
-            return Content($"""
-        <form method="post" action="/account/login?returnUrl={returnUrl}">
-          <input name="username" placeholder="demo" />
-          <input name="password" type="password" placeholder="P@ssw0rd!" />
-          <button type="submit">Login</button>
-        </form>
-        """, "text/html");
+            ViewData["ReturnUrl"] = returnUrl;
+            return View(new LoginViewModel { ReturnUrl = returnUrl });
         }
 
-        [HttpPost("login")]
-        public async Task<IActionResult> LoginPost(string username, string password, string? returnUrl = null)
+        [HttpPost("/Account/Login")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Login(LoginViewModel model)
         {
-            var user = await _userMgr.FindByNameAsync(username);
-            if (user != null && await _userMgr.CheckPasswordAsync(user, password))
+            if (!ModelState.IsValid)
+                return View(model);
+
+            var user = await _userMgr.FindByNameAsync(model.Username);
+            if (user != null)
             {
-                await _signInMgr.SignInAsync(user, false);
-                return Redirect(returnUrl ?? "/");
+                var result = await _signInMgr.PasswordSignInAsync(
+                    user,
+                    model.Password,
+                    isPersistent: false,
+                    lockoutOnFailure: false);
+
+                if (result.Succeeded)
+                {
+                    // Always redirect back to the OIDC flow if provided
+                    if (!string.IsNullOrEmpty(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))
+                        return Redirect(model.ReturnUrl);
+
+                    // Fallback: go home
+                    return RedirectToAction("Login", "Account");
+                }
             }
 
-            return Unauthorized("Invalid credentials");
+            ModelState.AddModelError("", "Invalid login attempt.");
+            return View(model);
+        }
+
+        [HttpPost("/Account/Logout")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Logout()
+        {
+            await _signInMgr.SignOutAsync();
+            return RedirectToAction("Login", "Account");
         }
     }
 }

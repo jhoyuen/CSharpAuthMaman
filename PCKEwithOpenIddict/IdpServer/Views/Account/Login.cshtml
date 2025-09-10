@@ -1,0 +1,16 @@
+﻿@using IdpServer.Models
+@model LoginViewModel
+
+<form asp-action="Login" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+    <div>
+        <label>Username</label>
+        <input name="Username" asp-for="Username" />
+    </div>
+    <div>
+        <label>Password</label>
+        <input name="Password" asp-for="Password" type="password" />
+    </div>
+    <button type="submit">Login</button>
+</form>

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
+using System.Collections.Concurrent;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,11 +25,18 @@ builder.Services
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
-        options.LoginPath = "/Account/Login";
+        options.LoginPath = "/account/login"; // not used in native flow
+        options.Cookie.Name = "idp.sid";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.None; // adjust for your scenario
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.ExpireTimeSpan = TimeSpan.FromMinutes(60);
     });
 
 // Add controllers (OpenIddict endpoints require controllers)
 builder.Services.AddControllersWithViews();
+
+builder.Services.AddHttpClient();
 
 // OpenIddict server
 builder.Services.AddOpenIddict()
@@ -37,7 +45,7 @@ builder.Services.AddOpenIddict()
     {
         options.SetAuthorizationEndpointUris("/connect/authorize")
                .SetTokenEndpointUris("/connect/token")
-               .SetUserinfoEndpointUris("/connect/userinfo");
+               .SetUserInfoEndpointUris("/connect/userinfo");
 
         options.AllowAuthorizationCodeFlow().RequireProofKeyForCodeExchange();
 
@@ -47,8 +55,7 @@ builder.Services.AddOpenIddict()
         options.UseAspNetCore()
             .EnableAuthorizationEndpointPassthrough()
             .EnableTokenEndpointPassthrough()
-            .EnableUserinfoEndpointPassthrough()
-            .DisableTransportSecurityRequirement(); // dev only
+            .EnableUserInfoEndpointPassthrough();
     })
     .AddValidation(opt =>
     {
@@ -81,7 +88,7 @@ using (var scope = app.Services.CreateScope())
         await appMgr.CreateAsync(new OpenIddictApplicationDescriptor
         {
             ClientId = "demo_client_pkce",
-            Type = ClientTypes.Public,
+            ClientType = ClientTypes.Public,
             ConsentType = ConsentTypes.Explicit,
             DisplayName = "Demo PKCE Client",
             RedirectUris = { new Uri("http://127.0.0.1:7890/") },

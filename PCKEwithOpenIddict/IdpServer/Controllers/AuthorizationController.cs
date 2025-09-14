@@ -7,6 +7,7 @@ using OpenIddict.Abstractions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Authentication.Cookies;
 
 namespace IdpServer.Controllers
 {
@@ -22,7 +23,6 @@ namespace IdpServer.Controllers
             _userManager = userManager;
         }
 
-        [Authorize] // Require login cookie
         [HttpGet("/connect/authorize")]
         [HttpPost("/connect/authorize")]
         public async Task<IActionResult> Authorize()
@@ -30,12 +30,29 @@ namespace IdpServer.Controllers
             var request = HttpContext.GetOpenIddictServerRequest()
                 ?? throw new InvalidOperationException("OIDC request missing.");
 
-            var user = await _userManager.GetUserAsync(User);
-            if (user == null)
+            //var user = await _userManager.GetUserAsync(User);
+            //if (user == null)
+            //{
+            //    // redirect to login if not logged in
+            //    return Challenge();
+            //}
+
+            // Retrieve the user principal stored in the authentication cookie.
+            var result = await HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+            // If the user principal can't be extracted, redirect the user to the login page.
+            if (!result.Succeeded)
             {
-                // redirect to login if not logged in
-                return Challenge();
+                return Challenge(
+                    authenticationSchemes: CookieAuthenticationDefaults.AuthenticationScheme,
+                    properties: new AuthenticationProperties
+                    {
+                        RedirectUri = Request.PathBase + Request.Path + QueryString.Create(
+                            Request.HasFormContentType ? Request.Form.ToList() : Request.Query.ToList())
+                    });
             }
+
+            var user = await _userManager.GetUserAsync(User);
 
             var identity = new ClaimsIdentity(
                 authenticationType: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
@@ -57,6 +74,7 @@ namespace IdpServer.Controllers
 
             var principal = new ClaimsPrincipal(identity);
 
+            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
             return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
@@ -71,6 +89,7 @@ namespace IdpServer.Controllers
                 var authenticateResult = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
                 var principal = authenticateResult.Principal;
 
+                await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
                 return SignIn(principal!, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
             }
 
